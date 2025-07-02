@@ -1,2 +1,4 @@
 # go_co2_data_processing
-Scripts used to read xCO2 data from an automated flowing pCO2 measuring system from General Oceanics Inc. Model 8050 with a LI-7810
+Scripts used to read xCO2 data from an automated flowing pCO2 measuring system from General Oceanics Inc. Model 8050 with a LI-7810.
+
+Run process_data.py, make sure to update which data folder that contains xCO2 data within this script. Associated quality controlled ferrybox data will be automatically retrieved, only acceptable data will be used. The scripts are built for the data maintenance within SMHI.
