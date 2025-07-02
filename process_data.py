@@ -8,6 +8,7 @@ from flag import get_type_flags, range_check, constant_value, outlier_check, gra
 from prepare_standards import get_median_and_interpolate, get_standard_reference_value
 from calculations import (correct_co2_based_on_standards, get_qff, get_delta_temperature, calculate_pco2_dry,
                           calculate_pco2_wet, calculate_fco2_wet, calculate_pco2_fco2_in_situ)
+from export_results import export_fco2
 
 # directory for CO2 files
 # co2_folder = r'\\winfs-proj\data\proj\havgem\MOL\Teknikverksamheten\Transpaper_drift\16_CO2_data\DATA\2014\all_dat_files_2014'
@@ -101,6 +102,9 @@ df = calculate_pco2_fco2_in_situ(df, is_valid_equ)
 
 # plot fco2 wet at in situ temperature together with in situ temperature and salinity
 plot_fco2_in_situ(df)
+
+# export fco2 data
+export_fco2(df)
 
 
 

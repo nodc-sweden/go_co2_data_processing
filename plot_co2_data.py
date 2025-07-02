@@ -1,9 +1,11 @@
 import folium
-import pandas as pd
-import webbrowser
 import os
+import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+import webbrowser
+
+from export_results import get_figure_path
 
 
 def plot_ship_track(df: pd.DataFrame):
@@ -19,8 +21,7 @@ def plot_ship_track(df: pd.DataFrame):
         folium.CircleMarker(location=[rows[0], rows[1]],
                             radius=1, weight=2).add_to(trailMap)
     trailMap.fit_bounds(trailMap.get_bounds())
-    export_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    r'exported_figures\Position_on_land.html')
+    export_file_path = os.path.join(get_figure_path(), r'Position_on_land.html')
     trailMap.save(export_file_path)
     webbrowser.open(export_file_path)
 

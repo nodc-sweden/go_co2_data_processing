@@ -156,6 +156,9 @@ def calculate_pco2_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: 
          (df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'] -
           calculate_ph2o(df.loc[df['is_atm'] & is_valid_atm, 'SBE38 FB'],
                          df.loc[df['is_atm'] & is_valid_atm, 'SBE45 Salinity FB'])))
+    df['pco2_wet_atm'] = np.nan
+    df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet_atm'] = df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet']
+
     return df
 
 
@@ -180,6 +183,8 @@ def calculate_fco2_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: 
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'],
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet'],
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'xco2_cal'])
+    df['fco2_wet_atm'] = np.nan
+    df.loc[df['is_atm'] & is_valid_atm, 'fco2_wet_atm'] = df.loc[df['is_atm'] & is_valid_atm, 'fco2_wet']
     return df
 
 
