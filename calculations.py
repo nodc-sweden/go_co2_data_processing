@@ -13,7 +13,7 @@ def pres_at_sea_level(pressure, temperature_c, height):
 # function used by SMHI
 def calculate_qff(temperature_c, latitude, height: int, pressure):
     #  QFF: the air pressure at the monitoring station reduced to sea level, typically using local temperature
-    #  observations (e.g. use "air temp FB"). This is in contrast to QNH, which is the sea level pressure calculated
+    #  observations (e.g. use "Air_temperature"). This is in contrast to QNH, which is the sea level pressure calculated
     #  assuming a standard atmosphere.
     latitude = latitude.fillna(60)
     temperature_c = temperature_c.fillna(15)
@@ -38,14 +38,13 @@ def calculate_qff(temperature_c, latitude, height: int, pressure):
 
 def get_qff(df: pd.DataFrame) -> pd.DataFrame:
     df['QFF'] = np.nan
-    bool_qff = (df['time series'] < datetime(2023, 1, 1, 0, 0, 0)) & (df[
-                                                                          'QF QFF FB'] < 3)
+    bool_qff = ((df['time series'] < datetime(2023, 1, 1, 0, 0, 0)) &
+                df['QF QFF FB'])
     df.loc[bool_qff, 'QFF'] = df.loc[bool_qff, 'QFF FB']
-
-    bool_atm_pres = (~bool_qff) & (df['QF atm pressure FB'] < 3) & (df['QF air temp FB'] < 3)
-    df.loc[bool_atm_pres, 'QFF'] = calculate_qff(df.loc[bool_atm_pres, 'air temp FB'],
-                                                 df.loc[bool_atm_pres, 'Lat FB'], 27,
-                                                 df.loc[bool_atm_pres,'atm pressure FB'])
+    bool_atm_pres = (~bool_qff) & df['QF Atm_pressure'] & df['QF Air_temperature'] & df['QF Latitude']
+    df.loc[bool_atm_pres, 'QFF'] = calculate_qff(df.loc[bool_atm_pres, 'Air_temperature'],
+                                                 df.loc[bool_atm_pres, 'Latitude'], 27,
+                                                 df.loc[bool_atm_pres,'Atm_pressure'])
     return df
 
 
@@ -79,13 +78,17 @@ def get_p_equ_p_atm(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_delta_temperature(df: pd.DataFrame) -> pd.DataFrame:
-    df['delta temperature'] = df['equ temp'] - df['SBE38 FB']
+    df['delta temperature'] = df['equ temp'] - df['SST']
     return df
 
 
-def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, calibration_threshold: int = 10,
+def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, start_time: datetime, calibration_threshold: int = 10,
                                    standard_threshold: int = 10) -> pd.DataFrame:
     df['xco2_cal'] = np.nan
+    df['standard_slope'] = np.nan
+    df['standard_intercept'] = np.nan
+    df['standard_r_square'] = np.nan
+    df['number_of_standards'] = np.nan
     df['QF xco2_cal'] = True
 
     # use CO2 avg ppm if existing
@@ -96,7 +99,7 @@ def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, calibratio
     co2_values.loc[is_co2] = df.loc[is_co2, 'CO2 ppm']
 
     # only use std1 when there's too few of the others
-    if '1' in standards and len(standards) > 3:
+    if '1' in standards and len(standards) > 3 and start_time < datetime(2025, 1, 1, 0, 0, 0):
         standards = [s for s in standards if s != '1']
 
     for idx, j in enumerate(co2_values):
@@ -105,7 +108,8 @@ def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, calibratio
         for item in standards:
             interpolated_stds.append(df[f'interpolated_std{item}'].iloc[idx])
             reference_stds.append(df[f'reference_std{item}'].iloc[idx])
-        combined = [(ref, interp) for ref, interp in zip(reference_stds, interpolated_stds) if not pd.isna(ref)]
+        combined = [(ref, interp) for ref, interp in zip(reference_stds, interpolated_stds)
+                    if not pd.isna(ref) and not pd.isna(interp)]
         if len(combined) < 2:
             df.loc[idx, 'QF xco2_cal'] = False
             continue
@@ -115,6 +119,10 @@ def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, calibratio
         converted_slope = 1 / slope
         converted_intercept = (intercept * -1) / slope
         df.loc[idx, 'xco2_cal'] = co2_values.loc[idx] * converted_slope + converted_intercept
+        df.loc[idx, 'standard_slope'] = slope
+        df.loc[idx, 'standard_intercept'] = intercept
+        df.loc[idx, 'standard_r_square'] = r**2
+        df.loc[idx, 'number_of_standards'] = len(reference_stds_sorted)
         for ref, interp in zip(reference_stds_sorted, interpolated_stds_sorted):
             df.loc[idx, 'QF xco2_cal'] &= abs(ref - interp) <= standard_threshold
     df.loc[is_co2_avg, 'QF xco2_cal'] &= (df.loc[is_co2_avg, 'QF CO2 avg ppm'] &
@@ -150,12 +158,12 @@ def calculate_pco2_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: 
         (df.loc[df['is_equ'] & is_valid_equ, 'xco2_cal'] *
          (df.loc[df['is_equ'] & is_valid_equ, 'P_equ'] -
           calculate_ph2o(df.loc[df['is_equ'] & is_valid_equ, 'equ temp'],
-                         df.loc[df['is_equ'] & is_valid_equ, 'SBE45 Salinity FB'])))
+                         df.loc[df['is_equ'] & is_valid_equ, 'SSS'])))
     df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet'] = \
         (df.loc[df['is_atm'] & is_valid_atm, 'xco2_cal'] *
          (df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'] -
-          calculate_ph2o(df.loc[df['is_atm'] & is_valid_atm, 'SBE38 FB'],
-                         df.loc[df['is_atm'] & is_valid_atm, 'SBE45 Salinity FB'])))
+          calculate_ph2o(df.loc[df['is_atm'] & is_valid_atm, 'SST'],
+                         df.loc[df['is_atm'] & is_valid_atm, 'SSS'])))
     df['pco2_wet_atm'] = np.nan
     df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet_atm'] = df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet']
 
@@ -179,7 +187,7 @@ def calculate_fco2_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: 
                                                                      df.loc[df['is_equ'] & is_valid_equ, 'P_equ'],
                                                                      df.loc[df['is_equ'] & is_valid_equ, 'pco2_wet'],
                                                                      df.loc[df['is_equ'] & is_valid_equ, 'xco2_cal'])
-    df.loc[df['is_atm'] & is_valid_atm, 'fco2_wet'] = calculate_fco2(df.loc[df['is_atm'] & is_valid_atm, 'SBE38 FB'],
+    df.loc[df['is_atm'] & is_valid_atm, 'fco2_wet'] = calculate_fco2(df.loc[df['is_atm'] & is_valid_atm, 'SST'],
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'],
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet'],
                                                                      df.loc[df['is_atm'] & is_valid_atm, 'xco2_cal'])
@@ -193,11 +201,11 @@ def calculate_pco2_fco2_in_situ(df: pd.DataFrame, is_valid_equ: pd.Series) -> pd
     df['fco2_wet_sst'] = np.nan
     df.loc[df['is_equ'] & is_valid_equ, 'pco2_wet_sst'] = \
         (df.loc[df['is_equ'] & is_valid_equ, 'pco2_wet'] *
-         np.exp(0.0423 * (df.loc[df['is_equ'] & is_valid_equ, 'SBE38 FB'] -
+         np.exp(0.0423 * (df.loc[df['is_equ'] & is_valid_equ, 'SST'] -
                           df.loc[df['is_equ'] & is_valid_equ, 'equ temp'])))
     df.loc[df['is_equ'], 'fco2_wet_sst'] = \
         (df.loc[df['is_equ'] & is_valid_equ, 'fco2_wet'] *
-         np.exp(0.0423 * (df.loc[df['is_equ'] & is_valid_equ, 'SBE38 FB'] -
+         np.exp(0.0423 * (df.loc[df['is_equ'] & is_valid_equ, 'SST'] -
                           df.loc[df['is_equ'] & is_valid_equ, 'equ temp'])))
 
     return df

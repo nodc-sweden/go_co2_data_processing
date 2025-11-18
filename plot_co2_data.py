@@ -3,25 +3,27 @@ import os
 import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+from datetime import datetime
 import webbrowser
 
 from export_results import get_figure_path
 
 
-def plot_ship_track(df: pd.DataFrame):
+def plot_ship_track(df: pd.DataFrame, start_date: str, end_date: str):
 
-    coord = zip(df['Lat combined'].dropna(), df['Lon combined'].dropna())
-    mid_lat = min(df['Lat combined'].dropna()) + ((max(df['Lat combined'].dropna()) -
-                                                   min(df['Lat combined'].dropna())) / 2)
-    mid_lon = min(df['Lon combined'].dropna()) + ((max(df['Lon combined'].dropna()) -
-                                                   min(df['Lon combined'].dropna())) / 2)
+    coord = zip(df['Latitude'].dropna(), df['Longitude'].dropna())
+    mid_lat = min(df['Latitude'].dropna()) + ((max(df['Latitude'].dropna()) -
+                                                   min(df['Latitude'].dropna())) / 2)
+    mid_lon = min(df['Longitude'].dropna()) + ((max(df['Longitude'].dropna()) -
+                                                   min(df['Longitude'].dropna())) / 2)
     trailMap = folium.Map(location=[mid_lat, mid_lon], zoom_start=10)
 
     for rows in coord:
         folium.CircleMarker(location=[rows[0], rows[1]],
                             radius=1, weight=2).add_to(trailMap)
     trailMap.fit_bounds(trailMap.get_bounds())
-    export_file_path = os.path.join(get_figure_path(), r'Position_on_land.html')
+    export_file_path = os.path.join(get_figure_path(),
+                                    f'ship_track_{start_date}_{end_date}.html')
     trailMap.save(export_file_path)
     webbrowser.open(export_file_path)
 
@@ -44,7 +46,8 @@ def add_parameter_with_qf_to_subplot(fig, df: pd.DataFrame, y: str, row: int, co
     return
 
 
-def plot_with_subplots(df: pd.DataFrame, parameters_extended: list, exception: list):
+def plot_with_subplots(df: pd.DataFrame, parameters_extended: list, exception: list, start_date: str,
+                                 end_date: str,):
     parameters = []
     for item in parameters_extended:
         if item in df.columns and df[item].notna().any():
@@ -63,10 +66,19 @@ def plot_with_subplots(df: pd.DataFrame, parameters_extended: list, exception: l
 
     fig.update_layout(height=1000, showlegend=False, font=dict(size=14))
     fig.show()
+    if parameters[0] == "SST":
+        export_file_path = os.path.join(get_figure_path(),
+                                        f'{parameters[-1]}_{start_date}_{end_date}.html')
+    else:
+        export_file_path = os.path.join(get_figure_path(),
+                                        f'{parameters[0]}_{start_date}_{end_date}.html')
+    fig.write_html(export_file_path)
     return
 
 
-def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list, selection_extended: list):
+def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list,
+                                 selection_extended: list, start_date: str,
+                                 end_date: str,):
     parameters = []
     selection = []
     subplot_names = []
@@ -91,24 +103,31 @@ def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list, se
 
     fig.update_layout(height=1000, showlegend=False, font=dict(size=14))
     fig.show()
+    export_file_path = os.path.join(get_figure_path(),
+                                    f'{parameters[0]}_{start_date}_{end_date}.html')
+    fig.write_html(export_file_path)
     return
 
 
-def plot_housekeeping_parameters(df: pd.DataFrame):
-    parameters_extended = ["H2O flow", "equ temp", "delta temperature", "SBE38 FB", "SBE45 Salinity FB"]
-    plot_with_subplots(df, parameters_extended, ['SBE38 FB', 'SBE45 Salinity FB'])
+def plot_housekeeping_parameters(df: pd.DataFrame, start_date: str, end_date: str):
+    parameters_extended = ["H2O flow", "equ temp", "delta temperature", "SST", "SSS"]
+    plot_with_subplots(df, parameters_extended, [], start_date, end_date)
     parameters_extended = ['vent flow', 'equ press', 'lab press', 'licor press', 'QFF']
-    plot_with_subplots(df, parameters_extended, ['QFF'])
+    plot_with_subplots(df, parameters_extended, ['QFF'], start_date, end_date)
     selection_extended = ['is_std1_z', 'is_std1', 'is_std2', 'is_std2_s', 'is_std3', 'is_std3_s', 'is_std4',
                           'is_std4_s', 'is_std5', 'is_std5_s', 'is_atm', 'is_equ']
 
-    plot_with_subplots_selection(df, ['licor flow'], selection_extended)
+    plot_with_subplots_selection(df, ['licor flow'], selection_extended, start_date, end_date)
     selection_extended = ['is_atm', 'is_equ']
-    plot_with_subplots_selection(df, ['CO2 ppm', 'CO2 avg ppm'], selection_extended)
+    plot_with_subplots_selection(df, ['CO2 ppm', 'CO2 avg ppm'], selection_extended,
+                                 start_date, end_date)
     return
 
 
-def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,  param: str = 'CO2 avg ppm'):
+def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,
+                                 start_date: str, end_date: str,
+                                 param: str = 'CO2 avg ppm',
+                                  ):
     y = param if param in df.columns and df[param].notna().any() else 'CO2 ppm'
     selection = []
     subplot_names = []
@@ -129,21 +148,29 @@ def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,  pa
 
     fig.update_layout(height=1000, showlegend=True, font=dict(size=14))
     fig.show()
+    export_file_path = os.path.join(get_figure_path(),
+                                    f'standards_{start_date}_{end_date}.html')
+    fig.write_html(export_file_path)
     return
 
 
-def plot_standards(df: pd.DataFrame):
+def plot_standards(df: pd.DataFrame, start_date: str, end_date: str):
     selection_extended = ['is_std1_z', 'is_std1', 'is_std2', 'is_std2_s', 'is_std3', 'is_std3_s', 'is_std4',
                           'is_std4_s', 'is_std5', 'is_std5_s']
-    plot_with_subplots_standards(df, selection_extended)
+    plot_with_subplots_standards(df, selection_extended, start_date, end_date)
     return
 
 
-def plot_fco2_in_situ(df: pd.DataFrame):
-    parameters_extended = ['SBE38 FB', 'SBE45 Salinity FB', 'fco2_wet_sst']
-    plot_with_subplots(df, parameters_extended, parameters_extended)
+def plot_fco2_in_situ(df: pd.DataFrame, start_date: str, end_date: str):
+    parameters_extended = ['SST', 'SSS', 'fco2_wet_sst']
+    plot_with_subplots(df, parameters_extended, parameters_extended, start_date, end_date)
     return
 
+
+def plot_intercept_slope(df: pd.DataFrame, start_date: str, end_date: str):
+    parameters_extended = ['standard_slope', 'standard_intercept', 'standard_r_square', 'number_of_standards']
+    plot_with_subplots(df, parameters_extended, parameters_extended, start_date, end_date)
+    return
 
 
 

@@ -18,13 +18,38 @@ def get_data_path():
     return data_folder
 
 
-def export_fco2(df: pd.DataFrame):
-    export_columns = ['time series', 'Lat combined', 'Lon combined', 'SBE38 FB', 'SBE45 Salinity FB',
-                      'pco2_wet_sst', 'fco2_wet_sst', 'pco2_wet_atm', 'fco2_wet_atm']
+def export_fco2(df: pd.DataFrame, start_date: str, end_date: str):
+    export_columns = ['Year', 'Month', 'Day', 'Hour', 'Minute', 'Latitude', 'Longitude', 'SST', 'SSS',
+                      'pco2_wet_sst', 'fco2_wet_sst', 'pco2_wet_atm', 'fco2_wet_atm',
+                      ]
+    units = {
+        'Year': '',
+        'Month': '',
+        'Day': '',
+        'Hour': '',
+        'Minute': '',
+        'Latitude': '°N',
+        'Longitude': '°E',
+        'SST': '°C',
+        'SSS': '',
+        'pco2_wet_sst': 'μatm',
+        'fco2_wet_sst': 'μatm',
+        'pco2_wet_atm': 'μatm',
+        'fco2_wet_atm': 'μatm',
+    }
+
     filtered_df = df.loc[df['fco2_wet_atm'].notna() | df['fco2_wet_sst'].notna(), export_columns]
-    min_date = df['time series'].min().strftime('%Y%m%d')
-    max_date = df['time series'].max().strftime('%Y%m%d')
-    filename = f"Tavastland_fCO2_data_{min_date}_to_{max_date}.txt"
+    filename = f"Tavastland_fCO2_data_{start_date}_to_{end_date}.txt"
     export_path = os.path.join(get_data_path(), filename)
     filtered_df.to_csv(export_path, sep='\t', index=False)
+
+    units_fb = {
+        'CDOM': 'ppb',
+        'Phycocyanin': 'μg/l',
+        'O2': 'ml/l',
+        'Chl_fluorescense': 'μg/l',
+        'Turbidity': 'NTU'
+    }
+
+
     return

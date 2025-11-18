@@ -166,12 +166,27 @@ def read_files_dynamic(file_list: list):
 
         df = pl.concat([df, df_temp.select(base_cols)], how="vertical", rechunk=True)
         df_extra = pl.concat([df_extra, df_temp.select(extra_cols)], how="vertical", rechunk=True)
-    # add datetime time series and sort
+
+    # remove duplicated rows if existing
+    df = df.unique()
+    df_extra = df_extra.unique()
+
+    # add datetime time series
     df = df.with_columns(
         (
                 pl.col("PC Date") + " " + pl.col("PC Time")
         ).str.strptime(pl.Datetime, format="%d/%m/%y %H:%M:%S").alias("time series")
     )
+
+    # add year, month, day, hour, min
+    df = df.with_columns([
+        pl.col("time series").dt.year().alias("Year"),
+        pl.col("time series").dt.month().alias("Month"),
+        pl.col("time series").dt.day().alias("Day"),
+        pl.col("time series").dt.hour().alias("Hour"),
+        pl.col("time series").dt.minute().alias("Minute"),
+    ])
+
     df = df.sort('time series')
     df = df.with_columns(
         (pl.col("time series") - pl.col("time series").first()).dt.total_seconds().alias("elapsed time (s)")
@@ -197,8 +212,9 @@ def read_standards(standards_path: str):
 
 def read_ferrybox_files_dynamic(file_list: list):
     base_cols = ['38055', '38003', '8002', '88002', '8003', '88003', '8172', '88172',
-                 '8181', '88181', '8179', '88179', '8180', '88180', '72', '80072', '70', '80070', '8032', '88032',
-                 'time series FB']
+                 '8181', '88181', '8179', '88179', '8180', '88180', '72', '80072', '70',
+                 '80070', '8032', '88032', '8165', '88165', '8173', '88173', '8191', '88191',
+                 '8063', '88063', '8174','88174', 'Time_series']
 
     df = pl.DataFrame()
 
@@ -219,11 +235,11 @@ def read_ferrybox_files_dynamic(file_list: list):
         if "38003" in df_temp.columns:
             df_temp = df_temp.with_columns([pl.col("38003").
                                             str.strptime(pl.Datetime, strict=False,
-                                                         format="%Y%m%d%H%M%S").alias("time series FB")])
+                                                         format="%Y%m%d%H%M%S").alias("Time_series")])
         else:
             df_temp = df_temp.with_columns([pl.col("38055").
                                            str.strptime(pl.Datetime, format="%Y%m%d%H%M%S",
-                                                        strict=False).alias("time series FB")])
+                                                        strict=False).alias("Time_series")])
 
         for col in base_cols:
             if col not in df_temp.columns:
@@ -231,22 +247,41 @@ def read_ferrybox_files_dynamic(file_list: list):
 
         df = pl.concat([df, df_temp.select(base_cols)], how="vertical", rechunk=True)
 
-    df = df.sort("time series FB")
+    df = df.unique()
+    df = df.sort("Time_series")
     df = df.rename({
-        "8002": "Lat FB",
-        "8003": "Lon FB",
-        "8179": "SBE38 FB",
-        "8181": "SBE45 Salinity FB",
-        "72": "air temp FB",
-        "80072": "QF air temp FB",
-        "70": "atm pressure FB",
-        "80070": "QF atm pressure FB",
+        "8002": "Latitude",
+        "88002": "QF Latitude",
+        "8003": "Longitude",
+        "88003": "QF Longitude",
+        "8172": "Water_flow",
+        "88172": "QF Water_flow",
+        "8179": "SST",
+        "88179": "QF SST",
+        "8181": "SSS",
+        "88181": "QF SSS",
+        "72": "Air_temperature",
+        "80072": "QF Air_temperature",
+        "70": "Atm_pressure",
+        "80070": "QF Atm_pressure",
         "8032": "QFF FB",
-        "88032": "QF QFF FB"
+        "88032": "QF QFF FB",
+        "8165": "CDOM",
+        "88165": "QF CDOM",
+        "8173": "Phycocyanin",
+        "88173": "QF Phycocyanin",
+        "8191": "O2",
+        "88191": "QF O2",
+        "8063": "Chl_fluorescense",
+        "88063": "QF Chl_fluorescense",
+        "8174": "Turbidity",
+        "88174": "QF Turbidity"
     })
 
-    cols = ["Lat FB", "Lon FB", "SBE38 FB", "SBE45 Salinity FB", "air temp FB",  "atm pressure FB", "QFF FB", "88002",
-            "88003", "88172", "88179", "88181", "QF atm pressure FB", "QF air temp FB", "QF QFF FB"]
+    cols = ["Latitude", "QF Latitude", "Longitude", "QF Longitude", "Water_flow", "QF Water_flow", "SST", "QF SST",
+            "SSS", "QF SSS", "Air_temperature", "QF Air_temperature", "Atm_pressure", "QF Atm_pressure", "QFF FB",
+            "QF QFF FB", "CDOM", "QF CDOM", "Phycocyanin", "QF Phycocyanin", "O2", "QF O2", "Chl_fluorescense",
+            "QF Chl_fluorescense", "Turbidity", "QF Turbidity"]
 
     for col in cols:
         df = df.with_columns(
@@ -258,28 +293,39 @@ def read_ferrybox_files_dynamic(file_list: list):
         )
 
     df = df.filter(
-        (pl.col("88002") >= 0) & (pl.col("88002") < 3) &
-        (pl.col("88003") >= 0) & (pl.col("88003") < 3) &
-        (pl.col("88172") >= 0) & (pl.col("88172") < 3) &
-        (pl.col("88179") >= 0) & (pl.col("88179") < 3) &
-        (pl.col("88181") >= 0) & (pl.col("88181") < 3)
+        (pl.col("QF Water_flow") >= 0) & (pl.col("QF Water_flow") < 3)
     )
 
     df = df.with_columns([
         pl.when(pl.col(col) == -999).then(None).otherwise(pl.col(col)).alias(col) for col in cols
     ])
+
     df_fb = df.select([
-        "time series FB",
-        "Lat FB",
-        "Lon FB",
-        "SBE38 FB",
-        "SBE45 Salinity FB",
-        "air temp FB",
-        "QF air temp FB",
-        "atm pressure FB",
-        "QF atm pressure FB",
+        "Time_series",
+        "Latitude",
+        "QF Latitude",
+        "Longitude",
+        "QF Longitude",
+        "SST",
+        "QF SST",
+        "SSS",
+        "QF SSS",
+        "Air_temperature",
+        "QF Air_temperature",
+        "Atm_pressure",
+        "QF Atm_pressure",
         "QFF FB",
-        "QF QFF FB"
+        "QF QFF FB",
+        "CDOM",
+        "QF CDOM",
+        "Phycocyanin",
+        "QF Phycocyanin",
+        "O2",
+        "QF O2",
+        "Chl_fluorescense",
+        "QF Chl_fluorescense",
+        "Turbidity",
+        "QF Turbidity"
     ])
     return df_fb
 
@@ -288,13 +334,10 @@ def merge_go_and_ferrybox(df: pd.DataFrame, df_fb: pd.DataFrame):
     df = pd.merge_asof(
         df.reset_index(),
         df_fb,
-        left_on='time series', right_on='time series FB',
+        left_on='time series', right_on='Time_series',
         direction='nearest', tolerance=pd.Timedelta(seconds=60)).set_index('index').loc[df.index]
     return df
 
 
-def combine_data(df: pd.DataFrame):
-    df['Lat combined'] = df['Lat FB'].fillna(df['Lat'])
-    df['Lon combined'] = df['Lon FB'].fillna(df['Lon'])
-    return df
+
 
