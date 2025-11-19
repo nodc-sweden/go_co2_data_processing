@@ -112,8 +112,8 @@ def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list,
 def plot_housekeeping_parameters(df: pd.DataFrame, start_date: str, end_date: str):
     parameters_extended = ["H2O flow", "equ temp", "delta temperature", "SST", "SSS"]
     plot_with_subplots(df, parameters_extended, [], start_date, end_date)
-    parameters_extended = ['vent flow', 'equ press', 'lab press', 'licor press', 'QFF']
-    plot_with_subplots(df, parameters_extended, ['QFF'], start_date, end_date)
+    parameters_extended = ['vent flow', 'equ press', 'lab press', 'licor press', 'qff']
+    plot_with_subplots(df, parameters_extended, ['qff'], start_date, end_date)
     selection_extended = ['is_std1_z', 'is_std1', 'is_std2', 'is_std2_s', 'is_std3', 'is_std3_s', 'is_std4',
                           'is_std4_s', 'is_std5', 'is_std5_s', 'is_atm', 'is_equ']
 

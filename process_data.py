@@ -8,7 +8,7 @@ from flag import get_type_flags, range_check, constant_value, outlier_check, gra
 from prepare_standards import get_median_and_interpolate, get_standard_reference_value
 from calculations import (correct_co2_based_on_standards, get_qff, get_delta_temperature, calculate_pco2_dry,
                           calculate_pco2_wet, calculate_fco2_wet, calculate_pco2_fco2_in_situ)
-from export_results import export_fco2
+from export_results import export_fco2, export_ferrybox_with_fco2
 
 # directory for CO2 files
 # co2_folder = r'\\winfs-proj\data\proj\havgem\MOL\Teknikverksamheten\Transpaper_drift\16_CO2_data\DATA\2012\all_dat_files_2012'
@@ -60,10 +60,9 @@ df = outlier_check(df)
 df = gradient_check(df)
 
 # update flags for added ferrybox properties used in calculations
-df['QF Latitude'] = df['QF Latitude'] < 3
 df['QF SST'] = df['QF SST'] < 3
 df['QF SSS'] = df['QF SSS'] < 3
-df['QF QFF FB'] = df['QF QFF FB'] < 3
+df['QF QFF'] = df['QF QFF'] < 3
 df['QF Atm_pressure'] = df['QF Atm_pressure'] < 3
 df['QF Air_temperature'] = df['QF Air_temperature'] < 3
 
@@ -118,6 +117,13 @@ plot_intercept_slope(df, start_date, end_date)
 
 # export fco2 data
 export_fco2(df, start_date, end_date)
+
+# export ferrybox data
+start_t = df_fb["Time_series"].iloc[0]
+start_str = f"{start_t.year}{start_t.month:02d}{start_t.day:02d}"
+end_t = df_fb["Time_series"].iloc[-1]
+end_str= f"{end_t.year}{end_t.month:02d}{end_t.day:02d}"
+export_ferrybox_with_fco2(df, df_fb, start_str, end_str)
 
 
 

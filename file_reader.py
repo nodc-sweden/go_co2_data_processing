@@ -264,8 +264,8 @@ def read_ferrybox_files_dynamic(file_list: list):
         "80072": "QF Air_temperature",
         "70": "Atm_pressure",
         "80070": "QF Atm_pressure",
-        "8032": "QFF FB",
-        "88032": "QF QFF FB",
+        "8032": "QFF",
+        "88032": "QF QFF",
         "8165": "CDOM",
         "88165": "QF CDOM",
         "8173": "Phycocyanin",
@@ -279,8 +279,8 @@ def read_ferrybox_files_dynamic(file_list: list):
     })
 
     cols = ["Latitude", "QF Latitude", "Longitude", "QF Longitude", "Water_flow", "QF Water_flow", "SST", "QF SST",
-            "SSS", "QF SSS", "Air_temperature", "QF Air_temperature", "Atm_pressure", "QF Atm_pressure", "QFF FB",
-            "QF QFF FB", "CDOM", "QF CDOM", "Phycocyanin", "QF Phycocyanin", "O2", "QF O2", "Chl_fluorescense",
+            "SSS", "QF SSS", "Air_temperature", "QF Air_temperature", "Atm_pressure", "QF Atm_pressure", "QFF",
+            "QF QFF", "CDOM", "QF CDOM", "Phycocyanin", "QF Phycocyanin", "O2", "QF O2", "Chl_fluorescense",
             "QF Chl_fluorescense", "Turbidity", "QF Turbidity"]
 
     for col in cols:
@@ -314,8 +314,8 @@ def read_ferrybox_files_dynamic(file_list: list):
         "QF Air_temperature",
         "Atm_pressure",
         "QF Atm_pressure",
-        "QFF FB",
-        "QF QFF FB",
+        "QFF",
+        "QF QFF",
         "CDOM",
         "QF CDOM",
         "Phycocyanin",
@@ -337,6 +337,15 @@ def merge_go_and_ferrybox(df: pd.DataFrame, df_fb: pd.DataFrame):
         left_on='time series', right_on='Time_series',
         direction='nearest', tolerance=pd.Timedelta(seconds=60)).set_index('index').loc[df.index]
     return df
+
+
+def merge_ferrybox_and_fco2(df_fb: pd.DataFrame, df_filtered: pd.DataFrame, ):
+    df_merged = pd.merge_asof(
+        df_fb.reset_index(),
+        df_filtered,
+        left_on='Time_series', right_on='time series',
+        direction='nearest', tolerance=pd.Timedelta(seconds=60)).set_index('index').loc[df_fb.index]
+    return df_merged
 
 
 

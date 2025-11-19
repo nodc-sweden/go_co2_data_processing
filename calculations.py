@@ -37,12 +37,12 @@ def calculate_qff(temperature_c, latitude, height: int, pressure):
 
 
 def get_qff(df: pd.DataFrame) -> pd.DataFrame:
-    df['QFF'] = np.nan
+    df['qff'] = np.nan
     bool_qff = ((df['time series'] < datetime(2023, 1, 1, 0, 0, 0)) &
-                df['QF QFF FB'])
-    df.loc[bool_qff, 'QFF'] = df.loc[bool_qff, 'QFF FB']
-    bool_atm_pres = (~bool_qff) & df['QF Atm_pressure'] & df['QF Air_temperature'] & df['QF Latitude']
-    df.loc[bool_atm_pres, 'QFF'] = calculate_qff(df.loc[bool_atm_pres, 'Air_temperature'],
+                df['QF QFF'])
+    df.loc[bool_qff, 'qff'] = df.loc[bool_qff, 'QFF']
+    bool_atm_pres = (~bool_qff) & df['QF Atm_pressure'] & df['QF Air_temperature'] & (df['QF Latitude'] < 3)
+    df.loc[bool_atm_pres, 'qff'] = calculate_qff(df.loc[bool_atm_pres, 'Air_temperature'],
                                                  df.loc[bool_atm_pres, 'Latitude'], 27,
                                                  df.loc[bool_atm_pres,'Atm_pressure'])
     return df
@@ -70,10 +70,10 @@ def get_p_equ_p_atm(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[is_pressure_2, 'licor press'] +
         df.loc[is_pressure_2, 'equ press']
     ) / 1013.25
-    df['P_equ_is_from_QFF'] = df['P_equ'].isna() & df['QFF'].notna()
-    df.loc[df['P_equ_is_from_QFF'], 'P_equ'] = df['QFF'] / 1013.25
+    df['P_equ_is_from_QFF'] = df['P_equ'].isna() & df['qff'].notna()
+    df.loc[df['P_equ_is_from_QFF'], 'P_equ'] = df['qff'] / 1013.25
 
-    df['P_atm_sea'] = df['QFF'] / 1013.25
+    df['P_atm_sea'] = df['qff'] / 1013.25
     return df
 
 
