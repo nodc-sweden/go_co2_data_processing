@@ -35,10 +35,10 @@ def range_check(df: pd.DataFrame):
     df['QF equ temp'] = ((df['equ temp'] > -2) & (df['equ temp'] < 40) & (df['delta temperature'] > 0) &
                          (df['delta temperature'] < 2))
     df['QF delta temperature'] = df['QF equ temp']
-    df['QF licor press'] = (df['licor press'] > 900) & (df['licor press'] < 1100)
-    df['QF lab press'] = (df['lab press'] > 900) & (df['lab press'] < 1100)
+    df['QF licor press'] = (df['licor press'] > 900) & (df['licor press'] < 1100)  # Pierrot 900-1040
+    df['QF lab press'] = (df['lab press'] > 900) & (df['lab press'] < 1100)  # Pierrot 900-1040
     df['QF equ press'] = (df['equ press'] > -0.5) & (df['equ press'] < 0.5)  # original range -0.5 och 0.5
-    df['QF licor flow'] = (df['licor flow'] > 20) & (df['licor flow'] < 500)
+    df['QF licor flow'] = (df['licor flow'] > 20) & (df['licor flow'] < 500)  # Pierrot
     df['QF vent flow'] = (df['vent flow'] > -5) & (
                 df['vent flow'] < 25)  # typical value about 20 ml/min to replace lost air.
     df['QF CO2 ppm'] = (df['CO2 ppm'] > 80) & (df['CO2 ppm'] < 1200)

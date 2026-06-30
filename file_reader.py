@@ -270,12 +270,16 @@ def read_ferrybox_files_dynamic(file_list: list):
         "88165": "QF CDOM",
         "8173": "Phycocyanin",
         "88173": "QF Phycocyanin",
+        # "8190": "O2 saturation",
+        # "88190": "QF O2 saturation",
         "8191": "O2",
         "88191": "QF O2",
         "8063": "Chl_fluorescense",
         "88063": "QF Chl_fluorescense",
         "8174": "Turbidity",
-        "88174": "QF Turbidity"
+        "88174": "QF Turbidity",
+        #"8175": "PAR",
+        #"88175": "QF PAR",
     })
 
     cols = ["Latitude", "QF Latitude", "Longitude", "QF Longitude", "Water_flow", "QF Water_flow", "SST", "QF SST",

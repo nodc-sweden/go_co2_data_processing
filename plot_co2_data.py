@@ -109,6 +109,39 @@ def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list,
     return
 
 
+def plot_with_subplots_selection_no_qf(df: pd.DataFrame, parameters_extended: list,
+                                 selection_extended: list, start_date: str,
+                                 end_date: str,):
+    parameters = []
+    selection = []
+    subplot_names = []
+    for item in selection_extended:
+        if item in df.columns and (df[item] == 1).any():
+            selection.append(item)
+
+    for param in parameters_extended:
+        if param in df.columns and df[param].notna().any():
+            parameters.append(param)
+            for key in selection:
+                subplot_names.append(f'{param} {key[3:]}')
+
+    fig = make_subplots(rows=len(subplot_names), cols=1, subplot_titles=subplot_names, shared_xaxes=True,
+                        vertical_spacing=0.1)
+    row = 1
+    for y in parameters:
+        for item in selection:
+            filtered_df = df[df[item] == 1]
+            add_parameter_to_subplot(fig, filtered_df, y, row)
+            row = row + 1
+
+    fig.update_layout(height=1000, showlegend=False, font=dict(size=14))
+    fig.show()
+    export_file_path = os.path.join(get_figure_path(),
+                                    f'{parameters[0]}_{start_date}_{end_date}.html')
+    fig.write_html(export_file_path)
+    return
+
+
 def plot_housekeeping_parameters(df: pd.DataFrame, start_date: str, end_date: str):
     parameters_extended = ["H2O flow", "equ temp", "delta temperature", "SST", "SSS"]
     plot_with_subplots(df, parameters_extended, [], start_date, end_date)
@@ -118,6 +151,9 @@ def plot_housekeeping_parameters(df: pd.DataFrame, start_date: str, end_date: st
                           'is_std4_s', 'is_std5', 'is_std5_s', 'is_atm', 'is_equ']
 
     plot_with_subplots_selection(df, ['licor flow'], selection_extended, start_date, end_date)
+    selection_extended = ['is_std1', 'is_std2', 'is_std3', 'is_std4','is_std5', 'is_atm', 'is_equ']
+    plot_with_subplots_selection_no_qf(df, ["H2O avg ppt",], selection_extended, start_date, end_date)
+    plot_with_subplots(df, ["cond temp","equ cond", "atm cond"], ["cond temp", "equ cond", "atm cond"], start_date, end_date)
     selection_extended = ['is_atm', 'is_equ']
     plot_with_subplots_selection(df, ['CO2 ppm', 'CO2 avg ppm'], selection_extended,
                                  start_date, end_date)
