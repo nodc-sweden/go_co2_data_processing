@@ -53,6 +53,9 @@ def plot_with_subplots(df: pd.DataFrame, parameters_extended: list, exception: l
         if item in df.columns and df[item].notna().any():
             parameters.append(item)
 
+    if not parameters:
+        return
+
     fig = make_subplots(rows=len(parameters), cols=1, subplot_titles=parameters, shared_xaxes=True, vertical_spacing=0.1)
     row = 1
     for item in parameters:
@@ -92,6 +95,9 @@ def plot_with_subplots_selection(df: pd.DataFrame, parameters_extended: list,
             for key in selection:
                 subplot_names.append(f'{param} {key[3:]}')
 
+    if not parameters:
+        return
+
     fig = make_subplots(rows=len(subplot_names), cols=1, subplot_titles=subplot_names, shared_xaxes=True,
                         vertical_spacing=0.1)
     row = 1
@@ -125,14 +131,18 @@ def plot_with_subplots_selection_no_qf(df: pd.DataFrame, parameters_extended: li
             for key in selection:
                 subplot_names.append(f'{param} {key[3:]}')
 
+    if not parameters:
+        return
+
     fig = make_subplots(rows=len(subplot_names), cols=1, subplot_titles=subplot_names, shared_xaxes=True,
                         vertical_spacing=0.1)
     row = 1
     for y in parameters:
         for item in selection:
             filtered_df = df[df[item] == 1]
-            add_parameter_to_subplot(fig, filtered_df, y, row)
-            row = row + 1
+            if filtered_df[y].notna().any():
+                add_parameter_to_subplot(fig, filtered_df, y, row)
+                row = row + 1
 
     fig.update_layout(height=1000, showlegend=False, font=dict(size=14))
     fig.show()
@@ -152,19 +162,34 @@ def plot_housekeeping_parameters(df: pd.DataFrame, start_date: str, end_date: st
 
     plot_with_subplots_selection(df, ['licor flow'], selection_extended, start_date, end_date)
     selection_extended = ['is_std1', 'is_std2', 'is_std3', 'is_std4','is_std5', 'is_atm', 'is_equ']
+    plot_with_subplots_selection_no_qf(df, ["H2O ppt",], selection_extended, start_date, end_date)
+    selection_extended = ['is_std1', 'is_std2', 'is_std3', 'is_std4','is_std5', 'is_atm', 'is_equ']
     plot_with_subplots_selection_no_qf(df, ["H2O avg ppt",], selection_extended, start_date, end_date)
     plot_with_subplots(df, ["cond temp","equ cond", "atm cond"], ["cond temp", "equ cond", "atm cond"], start_date, end_date)
     selection_extended = ['is_atm', 'is_equ']
     plot_with_subplots_selection(df, ['CO2 ppm', 'CO2 avg ppm'], selection_extended,
                                  start_date, end_date)
+    plot_with_subplots_selection(df, ['CH4 ppb', 'CH4 avg ppb'], selection_extended,
+                                 start_date, end_date)
     return
 
 
-def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,
-                                 start_date: str, end_date: str,
+def plot_with_subplots_standards(parameter: str,
+                                 unit: str,
+                                 df: pd.DataFrame,
+                                 selection_extended: list,
+                                 start_date: str,
+                                 end_date: str,
                                  param: str = 'CO2 avg ppm',
                                   ):
-    y = param if param in df.columns and df[param].notna().any() else 'CO2 ppm'
+    parameter = parameter.lower()
+    parameter_upper = parameter.upper()
+    y = f'{parameter_upper} avg {unit}' if \
+        (f'{parameter_upper} avg {unit}' in df.columns
+         and df[f'{parameter_upper} avg {unit}'].notna().any()) \
+        else f'{parameter_upper} {unit}'
+    if df[y].isna().all():
+        return
     selection = []
     subplot_names = []
     for item in selection_extended:
@@ -177,9 +202,9 @@ def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,
     for item in selection:
         filtered_df = df[df[item] == 1]
         add_parameter_to_subplot(fig, filtered_df, y, row)
-        add_parameter_to_subplot(fig, filtered_df, "CO2 std val", row, 1, 'magenta')
-        add_parameter_to_subplot(fig, filtered_df, f"reference_{item[3:7]}", row, 1, 'cyan')
-
+        if parameter == "co2":
+            add_parameter_to_subplot(fig, filtered_df, f"{parameter_upper} std val", row, 1, 'magenta')
+        add_parameter_to_subplot(fig, filtered_df, f"reference_{item[3:7]}_{parameter}", row, 1, 'cyan')
         row = row + 1
 
     fig.update_layout(height=1000, showlegend=True, font=dict(size=14))
@@ -193,7 +218,8 @@ def plot_with_subplots_standards(df: pd.DataFrame, selection_extended: list,
 def plot_standards(df: pd.DataFrame, start_date: str, end_date: str):
     selection_extended = ['is_std1_z', 'is_std1', 'is_std2', 'is_std2_s', 'is_std3', 'is_std3_s', 'is_std4',
                           'is_std4_s', 'is_std5', 'is_std5_s']
-    plot_with_subplots_standards(df, selection_extended, start_date, end_date)
+    plot_with_subplots_standards("CO2", "ppm", df, selection_extended, start_date, end_date)
+    plot_with_subplots_standards("CH4", "ppb", df, selection_extended, start_date, end_date)
     return
 
 
@@ -203,8 +229,13 @@ def plot_fco2_in_situ(df: pd.DataFrame, start_date: str, end_date: str):
     return
 
 
-def plot_intercept_slope(df: pd.DataFrame, start_date: str, end_date: str):
-    parameters_extended = ['standard_slope', 'standard_intercept', 'standard_r_square', 'number_of_standards']
+def plot_intercept_slope(parameter:str, df: pd.DataFrame, start_date: str, end_date: str):
+    parameter = parameter.lower()
+    parameters_extended = [
+        f'standard_slope_{parameter}',
+        f'standard_intercept_{parameter}',
+        f'standard_r_square_{parameter}',
+        f'number_of_standards_{parameter}']
     plot_with_subplots(df, parameters_extended, parameters_extended, start_date, end_date)
     return
 

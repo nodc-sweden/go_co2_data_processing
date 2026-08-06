@@ -82,56 +82,66 @@ def get_delta_temperature(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def correct_co2_based_on_standards(df: pd.DataFrame, standards: list, start_time: datetime, calibration_threshold: int = 10,
-                                   standard_threshold: int = 10) -> pd.DataFrame:
-    df['xco2_cal'] = np.nan
-    df['standard_slope'] = np.nan
-    df['standard_intercept'] = np.nan
-    df['standard_r_square'] = np.nan
-    df['number_of_standards'] = np.nan
-    df['QF xco2_cal'] = True
+def correct_based_on_standards(parameter: str,
+                               unit: str,
+                               df: pd.DataFrame,
+                               standards: list,
+                               start_time: datetime,
+                               calibration_threshold: int = 10,
+                               standard_threshold: int = 10) -> pd.DataFrame:
+    parameter_upper = parameter.upper()
+    parameter = parameter.lower()
+    df[f'x{parameter}_cal'] = np.nan
+    df[f'standard_slope_{parameter}'] = np.nan
+    df[f'standard_intercept_{parameter}'] = np.nan
+    df[f'standard_r_square_{parameter}'] = np.nan
+    df[f'number_of_standards_{parameter}'] = np.nan
+    df[f'QF x{parameter}_cal'] = True
 
-    # use CO2 avg ppm if existing
-    co2_values = df['CO2 avg ppm'].copy()
-    is_co2_avg = df['CO2 avg ppm'].notna()
-    # else use CO2 ppm
-    is_co2 = ~is_co2_avg
-    co2_values.loc[is_co2] = df.loc[is_co2, 'CO2 ppm']
+    # use avg if existing
+    values = df[f'{parameter_upper} avg {unit}'].copy()
+    is_avg = df[f'{parameter_upper} avg {unit}'].notna()
+    is_not_avg = ~is_avg
+    values.loc[is_not_avg] = df.loc[is_not_avg, f'{parameter_upper} {unit}']
 
     # only use std1 when there's too few of the others
     if '1' in standards and len(standards) > 3 and start_time < datetime(2025, 1, 1, 0, 0, 0):
         standards = [s for s in standards if s != '1']
 
-    for idx, j in enumerate(co2_values):
+    for idx, value in enumerate(values):
         interpolated_stds = []
         reference_stds = []
         for item in standards:
-            interpolated_stds.append(df[f'interpolated_std{item}'].iloc[idx])
-            reference_stds.append(df[f'reference_std{item}'].iloc[idx])
+            interpolated_stds.append(df[f'interpolated_std{item}_{parameter}'].iloc[idx])
+            reference_stds.append(df[f'reference_std{item}_{parameter}'].iloc[idx])
         combined = [(ref, interp) for ref, interp in zip(reference_stds, interpolated_stds)
                     if not pd.isna(ref) and not pd.isna(interp)]
         if len(combined) < 2:
-            df.loc[idx, 'QF xco2_cal'] = False
+            df.loc[idx, f'QF x{parameter}_cal'] = False
             continue
         combined.sort(key=lambda x: x[0])
         reference_stds_sorted, interpolated_stds_sorted = zip(*combined)
         slope, intercept, r, p, std_err = stats.linregress(reference_stds_sorted, interpolated_stds_sorted)
+        if (not np.isfinite([slope, r]).all() # if -inf, inf or nan
+                or r**2 < 0.98): # from Quantitative Chemical Analysis, Daniel C. Harris
+            df.loc[idx, f'QF x{parameter}_cal'] = False
+            continue
         converted_slope = 1 / slope
         converted_intercept = (intercept * -1) / slope
-        df.loc[idx, 'xco2_cal'] = co2_values.loc[idx] * converted_slope + converted_intercept
-        df.loc[idx, 'standard_slope'] = slope
-        df.loc[idx, 'standard_intercept'] = intercept
-        df.loc[idx, 'standard_r_square'] = r**2
-        df.loc[idx, 'number_of_standards'] = len(reference_stds_sorted)
+        df.loc[idx, f'x{parameter}_cal'] = values.loc[idx] * converted_slope + converted_intercept
+        df.loc[idx, f'standard_slope_{parameter}'] = slope
+        df.loc[idx, f'standard_intercept_{parameter}'] = intercept
+        df.loc[idx, f'standard_r_square_{parameter}'] = r**2
+        df.loc[idx, f'number_of_standards_{parameter}'] = len(reference_stds_sorted)
         for ref, interp in zip(reference_stds_sorted, interpolated_stds_sorted):
-            df.loc[idx, 'QF xco2_cal'] &= abs(ref - interp) <= standard_threshold
-    df.loc[is_co2_avg, 'QF xco2_cal'] &= (df.loc[is_co2_avg, 'QF CO2 avg ppm'] &
-                                          ((df.loc[is_co2_avg, 'xco2_cal'] -
-                                            df.loc[is_co2_avg, 'CO2 avg ppm']).abs() <= calibration_threshold))
+            df.loc[idx, f'QF x{parameter}_cal'] &= abs(ref - interp) <= standard_threshold
+    df.loc[is_avg, f'QF x{parameter}_cal'] &= (df.loc[is_avg, f'QF {parameter_upper} avg {unit}'] &
+                                          ((df.loc[is_avg, f'x{parameter}_cal'] -
+                                            df.loc[is_avg, f'{parameter_upper} avg {unit}']).abs() <= calibration_threshold))
 
-    df.loc[is_co2, 'QF xco2_cal'] &= (df.loc[is_co2, 'QF CO2 ppm'] &
-                                          ((df.loc[is_co2, 'xco2_cal'] -
-                                            df.loc[is_co2, 'CO2 ppm']).abs() <= calibration_threshold))
+    df.loc[is_not_avg, f'QF x{parameter}_cal'] &= (df.loc[is_not_avg, f'QF {parameter_upper} {unit}'] &
+                                          ((df.loc[is_not_avg, f'x{parameter}_cal'] -
+                                            df.loc[is_not_avg, f'{parameter_upper} {unit}']).abs() <= calibration_threshold))
     return df
 
 
@@ -142,7 +152,6 @@ def calculate_pco2_dry(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: 
                                                        df.loc[df['is_equ'] & is_valid_equ, 'P_equ'])
     df.loc[df['is_atm'] & is_valid_atm, 'pco2_dry'] = (df.loc[df['is_atm'] & is_valid_atm, 'xco2_cal'] *
                                                        df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'])
-
     return df
 
 
@@ -152,21 +161,27 @@ def calculate_ph2o(temperature_c, salinity):
                   4.8489 * np.log(temperature_k / 100) - 0.000544 * salinity)
 
 
+def calculate_ph2o_equ_atm(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: pd.Series) -> pd.DataFrame:
+    df['ph2o'] = np.nan
+    df.loc[df['is_equ'] & is_valid_equ, 'ph2o'] = calculate_ph2o(df.loc[df['is_equ'] & is_valid_equ, 'equ temp'],
+                                                                 df.loc[df['is_equ'] & is_valid_equ, 'SSS'])
+    df.loc[df['is_atm'] & is_valid_atm, 'ph2o'] = calculate_ph2o(df.loc[df['is_atm'] & is_valid_atm, 'SST'],
+                                                                 df.loc[df['is_atm'] & is_valid_atm, 'SSS'])
+    return df
+
+
 def calculate_pco2_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: pd.Series) -> pd.DataFrame:
     df['pco2_wet'] = np.nan
     df.loc[df['is_equ'] & is_valid_equ, 'pco2_wet'] = \
         (df.loc[df['is_equ'] & is_valid_equ, 'xco2_cal'] *
          (df.loc[df['is_equ'] & is_valid_equ, 'P_equ'] -
-          calculate_ph2o(df.loc[df['is_equ'] & is_valid_equ, 'equ temp'],
-                         df.loc[df['is_equ'] & is_valid_equ, 'SSS'])))
+          df.loc[df['is_equ'] & is_valid_equ, 'ph2o']))
     df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet'] = \
         (df.loc[df['is_atm'] & is_valid_atm, 'xco2_cal'] *
          (df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'] -
-          calculate_ph2o(df.loc[df['is_atm'] & is_valid_atm, 'SST'],
-                         df.loc[df['is_atm'] & is_valid_atm, 'SSS'])))
+          df.loc[df['is_atm'] & is_valid_atm, 'ph2o']))
     df['pco2_wet_atm'] = np.nan
     df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet_atm'] = df.loc[df['is_atm'] & is_valid_atm, 'pco2_wet']
-
     return df
 
 
@@ -209,6 +224,132 @@ def calculate_pco2_fco2_in_situ(df: pd.DataFrame, is_valid_equ: pd.Series) -> pd
                           df.loc[df['is_equ'] & is_valid_equ, 'equ temp'])))
 
     return df
+
+
+def calculate_pch4_dry(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: pd.Series) -> pd.DataFrame:
+    # Note xCH4 is given as ppb, the resulting unit will be natm
+    df = get_p_equ_p_atm(df)
+    df['pch4_dry'] = np.nan
+    df.loc[df['is_equ'] & is_valid_equ, 'pch4_dry'] = (df.loc[df['is_equ'] & is_valid_equ, 'xch4_cal'] *
+                                                       df.loc[df['is_equ'] & is_valid_equ, 'P_equ'])
+    df.loc[df['is_atm'] & is_valid_atm, 'pch4_dry'] = (df.loc[df['is_atm'] & is_valid_atm, 'xch4_cal'] *
+                                                       df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'])
+    return df
+
+
+def calculate_pch4_wet(df: pd.DataFrame, is_valid_equ: pd.Series, is_valid_atm: pd.Series) -> pd.DataFrame:
+    # Note xCH4 is given as ppb, the resulting unit will be natm
+    df['pch4_wet'] = np.nan
+    df.loc[df['is_equ'] & is_valid_equ, 'pch4_wet'] = \
+        (df.loc[df['is_equ'] & is_valid_equ, 'xch4_cal'] *
+         (df.loc[df['is_equ'] & is_valid_equ, 'P_equ'] -
+          df.loc[df['is_equ'] & is_valid_equ, 'ph2o']))
+    df.loc[df['is_atm'] & is_valid_atm, 'pch4_wet'] = \
+        (df.loc[df['is_atm'] & is_valid_atm, 'xch4_cal'] *
+         (df.loc[df['is_atm'] & is_valid_atm, 'P_atm_sea'] -
+          df.loc[df['is_atm'] & is_valid_atm, 'ph2o']))
+    df['pch4_wet_atm'] = np.nan
+    df.loc[df['is_atm'] & is_valid_atm, 'pch4_wet_atm'] = df.loc[df['is_atm'] & is_valid_atm, 'pch4_wet']
+    return df
+
+
+def calculate_bunsen_solubility_coefficient(
+        temperature_c,
+        salinity
+):
+    # Constants determined by Wiesenburg and Guinasso, 1979,
+    # for calculation of the bunsen solubility coefficient.
+    # Note that methane is treated as an ideal gas and the
+    # Bunsen coefficient is defined as the volume of gas, reduced
+    # to 0 degC and 1 atm of pressure (standard temperature and
+    # pressure) contained in a unit volume of water at the temperature
+    # of the measurement when the partial pressure of the gas is 1
+    # atm.
+    # The equation is originally derived by Weiss (1970, 1971).
+    temperature_k = temperature_c + 273.15
+    a1 = -68.8862
+    a2 = 101.4956
+    a3 = 28.7314
+    b1 = -0.076146
+    b2 = 0.043970
+    b3 = -0.0068672
+    return np.exp(a1 + a2 * (100 / temperature_k) + a3 * np.log(temperature_k / 100) +
+           salinity * (b1 + b2 * (temperature_k / 100) + b3 * (temperature_k / 100) ** 2))
+
+
+def seawater_density_at_1_atm(
+        temperature_c,
+        salinity
+):
+    # Calculate the density of pure water (S=0) from Bigg, 1967.
+    dens_h2o= (
+            999.842594
+            + 6.793952e-2 * temperature_c
+            - 9.095290e-3 * temperature_c ** 2
+            + 1.001685e-4 * temperature_c ** 3
+            - 1.120083e-6 * temperature_c ** 4
+            + 6.536332e-9 * temperature_c ** 5
+    )
+    # Calculate density of seawater at 1 atm(p=0) from Millero & Poisson 1981
+    a = (
+            8.24493e-1
+            - 4.0899e-3 * temperature_c
+            + 7.6438e-5 * temperature_c ** 2
+            - 8.2467e-7 * temperature_c ** 3
+            + 5.3875e-9 * temperature_c ** 4
+    )
+    b = (
+            -5.72466e-3
+            + 1.0227e-4 * temperature_c
+            - 1.6546e-6 * temperature_c ** 2
+    )
+    c = 4.8314e-4
+    return (
+            dens_h2o
+            + a * salinity
+            + b * salinity ** 1.5
+            + c * salinity ** 2
+    ) / 1000  # g/cm3, kg/L
+
+
+def calculate_ch4_nmol_kg_and_pch4_in_situ(df: pd.DataFrame, is_valid_equ: pd.Series) -> pd.DataFrame:
+    # Molar volume for an ideal gas at 1 atm (101.325 kPa) from NIST:
+    Vm = 22.41396954 # L mol-1
+
+    # Bunsen coefficient equ chamber
+    beta_equ = calculate_bunsen_solubility_coefficient(
+        df.loc[is_valid_equ, 'equ temp'],
+        df.loc[is_valid_equ, 'SSS']
+    )
+
+    # Seawater density at 1 atm in equilibrator
+    dens_equ = seawater_density_at_1_atm(
+        df.loc[is_valid_equ, 'equ temp'],
+        df.loc[is_valid_equ, 'SSS']
+    )
+    # CH4 concentration
+    df['ch4_nmol_kg'] = np.nan
+    df.loc[is_valid_equ, 'ch4_nmol_kg'] = (df.loc[is_valid_equ, 'pch4_wet'] *
+                                           beta_equ / (Vm * dens_equ)
+                                           )
+
+    # Bunsen coefficient in situ
+    beta_in_situ = calculate_bunsen_solubility_coefficient(
+        df.loc[is_valid_equ, 'SST'],
+        df.loc[is_valid_equ, 'SSS']
+    )
+    # Seawater density at 1 atm in situ
+    dens_in_situ = seawater_density_at_1_atm(
+        df.loc[is_valid_equ, 'SST'],
+        df.loc[is_valid_equ, 'SSS']
+    )
+    df['pch4_wet_sst'] = np.nan
+    df.loc[df['is_equ'] & is_valid_equ, 'pch4_wet_sst'] =  (df.loc[is_valid_equ, 'ch4_nmol_kg'] * dens_in_situ / (
+        beta_in_situ / Vm)
+    )
+
+    return df
+
 
 
 

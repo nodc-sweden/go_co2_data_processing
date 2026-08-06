@@ -43,6 +43,9 @@ def range_check(df: pd.DataFrame):
                 df['vent flow'] < 25)  # typical value about 20 ml/min to replace lost air.
     df['QF CO2 ppm'] = (df['CO2 ppm'] > 80) & (df['CO2 ppm'] < 1200)
     df['QF CO2 avg ppm'] = (df['CO2 avg ppm'] > 80) & (df['CO2 avg ppm'] < 1200)
+    if df["CH4 ppb"].notna().any():
+        df['QF CH4 ppb'] = (df['CH4 ppb'] > 100) & (df['CH4 ppb'] < 1000000)
+        df['QF CH4 avg ppb'] = (df['CH4 avg ppb'] > 100) & (df['CH4 avg ppb'] < 1000000)
     return df
 
 
