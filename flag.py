@@ -28,7 +28,7 @@ def get_type_flags(df: pd.DataFrame):
     return df
 
 
-def range_check(df: pd.DataFrame):
+def range_check(df: pd.DataFrame, has_ch4: bool):
     # Create QC flags
     df['QF period'] = df['time series'] > datetime.strptime('20120413150000', '%Y%m%d%H%M%S')
     df['QF H2O flow'] = (df['H2O flow'] > 1.5) & (df['H2O flow'] < 5)
@@ -43,14 +43,26 @@ def range_check(df: pd.DataFrame):
                 df['vent flow'] < 25)  # typical value about 20 ml/min to replace lost air.
     df['QF CO2 ppm'] = (df['CO2 ppm'] > 80) & (df['CO2 ppm'] < 1200)
     df['QF CO2 avg ppm'] = (df['CO2 avg ppm'] > 80) & (df['CO2 avg ppm'] < 1200)
-    if df["CH4 ppb"].notna().any():
+    if has_ch4:
         df['QF CH4 ppb'] = (df['CH4 ppb'] > 100) & (df['CH4 ppb'] < 1000000)
         df['QF CH4 avg ppb'] = (df['CH4 avg ppb'] > 100) & (df['CH4 avg ppb'] < 1000000)
     return df
 
 
-def constant_value(df: pd.DataFrame):
-    parameters = ['equ temp', 'licor press', 'lab press', 'equ press', 'CO2 ppm', 'CO2 avg ppm']
+def constant_value(df: pd.DataFrame, has_ch4: bool):
+    parameters = [
+        'equ temp',
+        'licor press',
+        'lab press',
+        'equ press',
+        'CO2 ppm',
+        'CO2 avg ppm',
+    ]
+    if has_ch4:
+        parameters.extend([
+            'CH4 ppb',
+            'CH4 avg ppb',
+        ])
     time_series = df['time series']
     for item in parameters:
         series = df[item]
@@ -111,14 +123,45 @@ def get_outliers(df: pd.DataFrame, parameter: str, selected: str, window: int = 
     return df
 
 
-def outlier_check(df: pd.DataFrame):
+def outlier_check(df: pd.DataFrame, has_ch4: bool):
     # Default is three days to match a typical cruise length with M/V Tavastland. With R/V Kronprins Haakon a window of
     # 20 min was applied, since hard weather conditions resulted in noise in many measured parameters. In the latter
     # case sMAD was used, but for M/V Tavastland the std over a larger window will likely be sufficient.
-    parameters = ['equ temp', 'licor press', 'lab press', 'equ press', 'CO2 ppm', 'CO2 ppm', 'CO2 avg ppm',
-                  'CO2 avg ppm']
-    all_data = pd.Series(True, index=df.index)
-    selections = ['all_data', 'all_data', 'all_data', 'all_data','is_atm', 'is_equ', 'is_atm', 'is_equ']
+    parameters = [
+        'equ temp',
+        'licor press',
+        'lab press',
+        'equ press',
+        'CO2 ppm',
+        'CO2 ppm',
+        'CO2 avg ppm',
+        'CO2 avg ppm',
+    ]
+    if has_ch4:
+        parameters.extend([
+            'CH4 ppb',
+            'CH4 ppb',
+            'CH4 avg ppb',
+            'CH4 avg ppb',
+        ])
+
+    selections = [
+        'all_data',
+        'all_data',
+        'all_data',
+        'all_data',
+        'is_atm',
+        'is_equ',
+        'is_atm',
+        'is_equ',
+    ]
+    if has_ch4:
+        selections.extend([
+            'is_atm',
+            'is_equ',
+            'is_atm',
+            'is_equ',
+        ])
     df = df.set_index('time series')
     for item, selected in zip(parameters,selections):
         df = get_outliers(df, item, selected, 4320, 'std')
@@ -126,10 +169,31 @@ def outlier_check(df: pd.DataFrame):
     return df
 
 
-def gradient_check(df: pd.DataFrame):
-    parameters = ['equ temp', 'licor press', 'lab press', 'equ press', 'CO2 ppm', 'CO2 avg ppm']
-    thresholds = [3, 50, 50, 2, 20, 20]
-    type_sensitive_parameters = ['equ press', 'CO2 ppm', 'CO2 avg ppm']
+def gradient_check(df: pd.DataFrame, has_ch4: bool):
+    parameters = [
+        'equ temp',
+        'licor press',
+        'lab press',
+        'equ press',
+        'CO2 ppm',
+        'CO2 avg ppm',
+    ]
+    if has_ch4:
+        parameters.extend([
+            'CH4 ppb',
+            'CH4 avg ppb',
+        ])
+    thresholds = [3, 50, 50, 2, 20, 20, 2000, 2000]
+    type_sensitive_parameters = [
+        'equ press',
+        'CO2 ppm',
+        'CO2 avg ppm',
+    ]
+    if has_ch4:
+        type_sensitive_parameters.extend([
+            'CH4 ppb',
+            'CH4 avg ppb',
+        ])
     for item, threshold in zip(parameters, thresholds):
         v = df[item]
         type_v = df['Type']

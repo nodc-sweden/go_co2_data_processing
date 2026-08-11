@@ -2,14 +2,14 @@ import sys
 
 from file_reader import (list_files, list_ferrybox_files, read_files_dynamic, read_standards,
                          read_ferrybox_files_dynamic, merge_go_and_ferrybox)
-from plot_co2_data import (plot_ship_track, plot_housekeeping_parameters, plot_standards,
-                           plot_fco2_in_situ, plot_intercept_slope)
+from plot_co2_ch4_data import (plot_ship_track, plot_housekeeping_parameters, plot_standards,
+                           plot_fco2_in_situ, plot_intercept_slope, plot_ch4_in_situ)
 from flag import get_type_flags, range_check, constant_value, outlier_check, gradient_check
 from prepare_standards import get_median_and_interpolate, get_standard_reference_value
 from calculations import (correct_based_on_standards, get_qff, get_delta_temperature, calculate_pco2_dry,
                           calculate_ph2o_equ_atm, calculate_pco2_wet, calculate_fco2_wet, calculate_pco2_fco2_in_situ,
                           calculate_pch4_dry, calculate_pch4_wet, calculate_ch4_nmol_kg_and_pch4_in_situ)
-from export_results import export_fco2, export_ferrybox_with_fco2
+from export_results import export_fco2_ch4, export_ferrybox_with_fco2_ch4
 
 # directory for CO2 files
 # co2_folder = r'\\winfs-proj\data\proj\havgem\MOL\Teknikverksamheten\Transpaper_drift\16_CO2_data\DATA\2012\all_dat_files_2012'
@@ -64,10 +64,10 @@ df = get_delta_temperature(df)
 df = get_type_flags(df)
 
 # get quality flags for GO system: range check, constant value, outlier and gradient check
-df = range_check(df)
-df = constant_value(df)
-df = outlier_check(df)
-df = gradient_check(df)
+df = range_check(df, has_ch4)
+df = constant_value(df, has_ch4)
+df = outlier_check(df, has_ch4)
+df = gradient_check(df, has_ch4)
 
 # update flags for added ferrybox properties used in calculations
 df['QF SST'] = df['QF SST'] < 3
@@ -127,10 +127,13 @@ df = calculate_fco2_wet(df, is_valid_equ_co2, is_valid_atm_co2)
 is_valid_equ_co2 &= df['QF SST']
 df = calculate_pco2_fco2_in_situ(df, is_valid_equ_co2)
 
+# plot fco2 wet at in situ temperature together with in situ temperature and salinity
+plot_fco2_in_situ(df, start_date, end_date)
+
 # methane
 if has_ch4:
     # correct data using standards
-    df = correct_based_on_standards("CH4", "ppb", df, standards, start_time, 100, 100)
+    df = correct_based_on_standards("CH4", "ppb", df, standards, start_time, 20, 20)
     plot_intercept_slope("ch4", df, start_date, end_date)
 
     is_valid_equ_ch4 = df['QF xch4_cal'] & is_valid_equ
@@ -148,18 +151,21 @@ if has_ch4:
     # calculate dissolved CH4 concentration and surface water partial pressure (in situ)
     df = calculate_ch4_nmol_kg_and_pch4_in_situ(df, is_valid_equ_ch4)
 
-# plot fco2 wet at in situ temperature together with in situ temperature and salinity
-plot_fco2_in_situ(df, start_date, end_date)
+    # plot concentration and pCH4 wet at in situ temperature,
+    # together with in situ temperature and salinity
+    plot_ch4_in_situ(df, start_date, end_date)
+
+
 
 # export fco2 data
-export_fco2(df, start_date, end_date)
+export_fco2_ch4(df, start_date, end_date, has_ch4)
 
 # export ferrybox data
 start_t = df_fb["Time_series"].iloc[0]
 start_str = f"{start_t.year}{start_t.month:02d}{start_t.day:02d}"
 end_t = df_fb["Time_series"].iloc[-1]
 end_str= f"{end_t.year}{end_t.month:02d}{end_t.day:02d}"
-export_ferrybox_with_fco2(df, df_fb, start_str, end_str)
+export_ferrybox_with_fco2_ch4(df, df_fb, start_str, end_str, has_ch4)
 
 
 

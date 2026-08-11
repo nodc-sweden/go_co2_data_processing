@@ -343,10 +343,10 @@ def merge_go_and_ferrybox(df: pd.DataFrame, df_fb: pd.DataFrame):
     return df
 
 
-def merge_ferrybox_and_fco2(df_fb: pd.DataFrame, df_filtered: pd.DataFrame, ):
+def merge_ferrybox_and_go(df_fb: pd.DataFrame, df_go: pd.DataFrame, ):
     df_merged = pd.merge_asof(
         df_fb.reset_index(),
-        df_filtered,
+        df_go,
         left_on='Time_series', right_on='time series',
         direction='nearest', tolerance=pd.Timedelta(seconds=60)).set_index('index').loc[df_fb.index]
     return df_merged
