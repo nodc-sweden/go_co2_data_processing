@@ -1,7 +1,7 @@
 [project]
 name = "go-co2-data-processing"
 version = "0.1.0"
-description = "Scripts used to read xCO2 data from an automated flowing pCO2 measuring system from General Oceanics Inc. Model 8050 with a LI-7810. "
+description = "Scripts used to read xCO2 and xCH4 data from an automated flowing measuring system from General Oceanics Inc. Model 8050 with a LI-7810. "
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,4 +13,6 @@ dependencies = [
     "scipy",
     "folium",
     "plotly",
+    "geopandas>=1.1.4",
+    "shapely>=2.1.2",
 ]

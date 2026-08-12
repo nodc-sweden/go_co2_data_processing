@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+
+import geopandas as gpd
+from shapely.geometry import Point, LineString
+
 from datetime import datetime
 
 
@@ -28,6 +32,92 @@ def get_type_flags(df: pd.DataFrame):
     return df
 
 
+def geographic_check(df: pd.DataFrame):
+    """
+    Flag GPS positions that fall within predefined non-ocean areas.
+
+    True  = acceptable ocean position
+    False = position is in/near a harbour, canal, etc.
+    """
+
+    if 'QF ocean' not in df.columns:
+        df['QF ocean'] = True
+
+    points = gpd.GeoDataFrame(
+        df[['Latitude', 'Longitude']].copy(),
+        geometry=gpd.points_from_xy(
+            df['Longitude'],
+            df['Latitude']
+        ),
+        index=df.index,
+        crs='EPSG:4326'
+    )
+
+    valid_points = points[
+        points.geometry.notna()
+        & points.geometry.is_valid
+        & points['Latitude'].between(-90, 90)
+        & points['Longitude'].between(-180, 180)
+    ].copy()
+
+    # ---------------------------------------------------------
+    # Define areas that should NOT count as ocean
+    # ---------------------------------------------------------
+    not_ocean = []
+
+    # ---------------------------------------------------------
+    # Umeå harbour
+    # ---------------------------------------------------------
+    umea = Point(20.346, 63.698)
+    not_ocean.append(umea.buffer(0.03))
+
+    # ---------------------------------------------------------
+    # Zeebrugge / Bruges harbour
+    # ---------------------------------------------------------
+    zeebrugge = Point(3.195, 51.357)
+    not_ocean.append(zeebrugge.buffer(0.02))
+
+    # ---------------------------------------------------------
+    # Kiel Canal
+    # ---------------------------------------------------------
+    kiel_canal_coords = [
+        (9.14, 53.89),   # Brunsbüttel
+        (9.286, 53.99), #9.283
+        (9.350, 54.144),
+        (9.581, 54.213),
+        (9.641, 54.284),
+        (9.701, 54.2991),
+        (9.72, 54.325),
+        (9.785, 54.36),
+        (9.850, 54.364),
+        (9.93, 54.3425),
+        (9.98, 54.3442),
+        (10.02, 54.3593),
+        (10.06, 54.3594),
+        (10.08, 54.369),
+        (10.140, 54.370),  # Kiel-Holtenau
+    ]
+
+    kiel_canal = LineString(kiel_canal_coords)
+    not_ocean.append(kiel_canal.buffer(0.02))
+
+
+    not_ocean_areas = gpd.GeoDataFrame(
+        geometry=not_ocean,
+        crs='EPSG:4326'
+    )
+
+    not_ocean_areas = not_ocean_areas.union_all()
+    is_not_ocean = valid_points.geometry.within(not_ocean_areas)
+
+    df.loc[valid_points.index, 'QF ocean'] &= ~is_not_ocean
+    num_of_not_ocean = (~df['QF ocean']).sum()
+    print('Geographic QC')
+    print(f'Number of harbour/channel points: {num_of_not_ocean}')
+
+    return df
+
+
 def range_check(df: pd.DataFrame, has_ch4: bool):
     # Create QC flags
     df['QF period'] = df['time series'] > datetime.strptime('20120413150000', '%Y%m%d%H%M%S')
@@ -44,8 +134,8 @@ def range_check(df: pd.DataFrame, has_ch4: bool):
     df['QF CO2 ppm'] = (df['CO2 ppm'] > 80) & (df['CO2 ppm'] < 1200)
     df['QF CO2 avg ppm'] = (df['CO2 avg ppm'] > 80) & (df['CO2 avg ppm'] < 1200)
     if has_ch4:
-        df['QF CH4 ppb'] = (df['CH4 ppb'] > 100) & (df['CH4 ppb'] < 1000000)
-        df['QF CH4 avg ppb'] = (df['CH4 avg ppb'] > 100) & (df['CH4 avg ppb'] < 1000000)
+        df['QF CH4 ppb'] = (df['CH4 ppb'] > 100) & (df['CH4 ppb'] < 1000000)  # perhaps 500000 ppb
+        df['QF CH4 avg ppb'] = (df['CH4 avg ppb'] > 100) & (df['CH4 avg ppb'] < 1000000)  # perhaps 500000 ppb
     return df
 
 

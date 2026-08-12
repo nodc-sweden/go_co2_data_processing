@@ -10,20 +10,41 @@ from export_results import get_figure_path
 
 
 def plot_ship_track(df: pd.DataFrame, start_date: str, end_date: str):
+    coord = df.dropna(subset=['Latitude', 'Longitude']).copy()
+    mid_lat = (
+        coord['Latitude'].min()
+        + (coord['Latitude'].max() - coord['Latitude'].min()) / 2
+    )
+    mid_lon = (
+        coord['Longitude'].min()
+        + (coord['Longitude'].max() - coord['Longitude'].min()) / 2
+    )
+    trailMap = folium.Map(
+        location=[mid_lat, mid_lon],
+        zoom_start=10
+    )
 
-    coord = zip(df['Latitude'].dropna(), df['Longitude'].dropna())
-    mid_lat = min(df['Latitude'].dropna()) + ((max(df['Latitude'].dropna()) -
-                                                   min(df['Latitude'].dropna())) / 2)
-    mid_lon = min(df['Longitude'].dropna()) + ((max(df['Longitude'].dropna()) -
-                                                   min(df['Longitude'].dropna())) / 2)
-    trailMap = folium.Map(location=[mid_lat, mid_lon], zoom_start=10)
+    for _, row in coord.iterrows():
+        if row['QF ocean']:
+            color = 'blue'
+        else:
+            color = 'red'
 
-    for rows in coord:
-        folium.CircleMarker(location=[rows[0], rows[1]],
-                            radius=1, weight=2).add_to(trailMap)
+        folium.CircleMarker(
+            location=[row['Latitude'], row['Longitude']],
+            radius=1,
+            weight=2,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=1
+        ).add_to(trailMap)
+
     trailMap.fit_bounds(trailMap.get_bounds())
-    export_file_path = os.path.join(get_figure_path(),
-                                    f'ship_track_{start_date}_{end_date}.html')
+    export_file_path = os.path.join(
+        get_figure_path(),
+        f'ship_track_{start_date}_{end_date}.html'
+    )
     trailMap.save(export_file_path)
     webbrowser.open(export_file_path)
 
